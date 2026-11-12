@@ -1,0 +1,11 @@
+# dsh-long-memory 的装载补丁：`dsh plugin add` / plugin_manager 安装后自动插入一行
+- insert:
+    - id: long-term-memory
+      name: 'dsh-long-memory'
+      config:
+        # 每次注入 prompt 的字符预算（别把上下文吃光）
+        maxChars: 700
+        # 一次注入最多几条记忆
+        topK: 6
+        # 记忆库位置；留空 = ~/.dsh/long-term-memory/memory.sqlite
+        # dbPath: 'C:\Users\<you>\.dsh\long-term-memory\memory.sqlite'

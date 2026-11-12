@@ -1,0 +1,19 @@
+{
+  "id": "dsh-external/dsh-long-memory",
+  "version": "0.1.0",
+  "main": "./src/index.js",
+  "description": "长时记忆：多因素强度、时序衰减、印象累积；每轮自动注入相关的旧记忆。",
+  "engines": {
+    "dsh": "0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.2-rc.1"
+  },
+  "contributes": {
+    "tools": [
+      "memory_recall",
+      "memory_remember",
+      "memory_forget",
+      "memory_impression",
+      "memory_review"
+    ],
+    "skills": []
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "dsh-long-memory",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "DSH 长时记忆插件：作用域 + 用途轴 + 连续衰减 + 印象累积，跨会话自动注入（零依赖，全本地）",
+  "main": "src/index.js",
+  "files": [
+    "src",
+    "scripts",
+    "cordis.patch.yml",
+    "dsh.plugin.json",
+    "记忆星图.cmd",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "engines": {
+    "node": ">=22.19.0",
+    "dsh": "0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.2-rc.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "test": "node tests/core.test.mjs && node tests/store.test.mjs && node tests/plugin.test.mjs",
+    "curves": "node scripts/dump-curves.mjs && python scripts/plot-decay.py",
+    "panel": "node scripts/build-panel.mjs"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "memory",
+    "long-term-memory",
+    "bm25",
+    "ebbinghaus",
+    "plugin"
+  ],
+  "author": "dsh-long-memory contributors"
+}

@@ -1,0 +1,9 @@
+node_modules/
+.npm-cache/
+out/
+backups/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.orig-*
+diag.json
