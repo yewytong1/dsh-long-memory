@@ -23,9 +23,19 @@ export const DEFAULTS = {
   // 每被复述一次，强度按 log 增长：S = S0 * (1 + hitW*ln(1+hits))
   hitW: 0.6,
   // 检索打分权重（和必须为 1）
-  wRetention: 0.45,
-  wImportance: 0.3,
-  wRelevance: 0.25,
+  // 2026-11-13 调整：原来是 0.45 / 0.3 / 0.25，实测搜"实习""OpenCV""UCPD"三组全没命中，
+  // 四组不同查询返回的 6 条一模一样——importance 0.95 的常驻条目永远在头上，相关度只值 25 分，翻不动。
+  // 现在相关度领跑，重要度和保留度降为加分项。Generative Agents 用三项等权（α 都取 1.0），
+  // 但那边没有"常驻硬约束"的概念，这里保留 0.2 的重要度兜底，防止口吻/底线类记忆被随机旧事实顶掉。
+  wRetention: 0.3,
+  wImportance: 0.2,
+  wRelevance: 0.5,
+  // 相关度低于这个值就不算命中（0 表示不设门槛，回到"永远凑满 k 条"的旧行为）
+  minRelevance: 0.05,
+  // 查询词覆盖率门槛：查询里的词有多少比例必须真的出现在这条记忆里。
+  // 与语料规模无关，比 BM25 绝对分数稳定（见 termCoverage 注释）。
+  // 0.3 ≈ 三个查询词至少命中一个；单个词的查询（阈值退化）由 minRelevance 兜底。
+  minTermCoverage: 0.3,
   // 进入候选 / 归档的门槛
   candidateRetention: 0.15,
   archiveRetention: 0.05,
@@ -160,10 +170,22 @@ export function recall(memories, now = Date.now(), opts = {}) {
   const relevanceOf = opts.relevanceOf ?? (() => 0.5)
   const diversity = opts.diversity ?? 0.15
   const includeSuperseded = opts.includeSuperseded === true
+  // 相关度门槛：显式传 relevanceOf 才算"在查东西"。
+  // opts.query 用来区分「查了一次、但关键词没命中（返回空是正确行为）」和
+  // 「压根没传查询、只是按重要度取几条（不该过滤）」——注入路径就是后者，不能误杀。
+  const hasQuery = typeof opts.relevanceOf === 'function'
+  const isSearch = hasQuery && opts.query !== false
+  // 门槛按 termCoverage 判定（与语料规模无关），而不是 BM25 绝对分数。
+  // opts.relevanceOf 仍用于排序打分，两者分工：打分看 BM25，门槛看覆盖率。
+  const minCoverage = opts.minCoverage ?? (isSearch ? cfg.minTermCoverage : 0)
+  const coverageOf = typeof opts.coverageOf === 'function' ? opts.coverageOf : null
   const onlyTags = opts.kinds ? new Set(opts.kinds) : null
   // 作用域过滤：给了 allowedScopes 就只在这个会话的线里取（world 永远算在内）
   const allowed = opts.scopes ? new Set(opts.scopes) : null
   const scopeOk = (m) => !allowed || m.scope === 'world' || allowed.has(m.scope)
+  // 没有 coverageOf 时退回旧行为（只按 relevanceOf 过滤），避免不传覆盖率的调用被全灭
+  const passGate = (m) =>
+    coverageOf ? coverageOf(m) >= minCoverage : clamp01(relevanceOf(m)) >= 1e-9
 
   const pool = memories
     .filter((m) => !m.archived)
@@ -171,6 +193,7 @@ export function recall(memories, now = Date.now(), opts = {}) {
     .filter((m) => !onlyTags || onlyTags.has(m.kind))
     .filter(scopeOk)
     .filter((m) => retention(m, now, cfg) >= cfg.candidateRetention)
+    .filter((m) => (isSearch ? passGate(m) : true)) // 不相关的硬过滤掉，宁可返空也不硬凑
     .map((m) => {
       const rel = clamp01(relevanceOf(m))
       return { mem: m, base: retrievalScore(m, now, rel, cfg), rel }
@@ -475,8 +498,32 @@ export function bm25Scores(docs, query, opts = {}) {
 
   let max = 0
   for (const v of scores.values()) if (v > max) max = v
+  // 归一化到 max（最高分 = 1.0）。
+  // 2026-11-13：中途试过 1-exp(-v/k) 的饱和归一化，后来撤了——不是因为"除以 max 是缺陷"，
+  // 而是因为下游 minScore / minRelevance 门槛的语义建立在"最高分 = 1.0"之上
+  // （Elasticsearch RRF、Qdrant、Weaviate 的 score contract 都是先 normalize-to-max 再过阈值）。
+  // 最高分不到 1，阈值就没有可比性。区分度的问题交给 termCoverage 和权重解决，不在这里改。
   if (max > 0) for (const [k, v] of scores) scores.set(k, v / max)
   return scores
+}
+
+/**
+ * 词覆盖率：查询词里有多少比例真的出现在这条记忆里。
+ *
+ * 为什么不直接用 BM25 分数做门槛：BM25 是绝对分数，会随语料条数和 IDF 漂移，
+ * 换个库、加几条记忆，同一个阈值就失效。term coverage 只问"查询里的词命中了几成"，
+ * 与语料规模无关，天然可做固定阈值。（参考 fare-policy-assistant 的 ADR 0013：
+ * 绝对 BM25 阈值是陷阱，他们改用 term_coverage + z_score，其中只有 coverage 在小语料上真正起作用。）
+ *
+ * @returns {number} 0~1。查询词为空时返回 1（视为不过滤）。
+ */
+export function termCoverage(text, query) {
+  const q = [...new Set(tokenize(query))]
+  if (q.length === 0) return 1
+  const doc = new Set(tokenize(text))
+  let hit = 0
+  for (const t of q) if (doc.has(t)) hit++
+  return hit / q.length
 }
 
 

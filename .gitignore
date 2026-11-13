@@ -7,3 +7,4 @@ backups/
 *.sqlite-wal
 *.orig-*
 diag.json
+.sync-backup/

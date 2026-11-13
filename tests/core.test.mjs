@@ -20,6 +20,7 @@ import {
   looksLikeFragment,
   tokenize,
   bm25Scores,
+  termCoverage,
   scoreParts,
   detectFileMention,
   similarity,
@@ -505,9 +506,47 @@ test('40. BM25：查询词命中正确的文档，且短文档不吃亏', () => 
     { id: 'b', text: 'D 盘空间不足，想清理一下装游戏的地方，顺便看看这几个目录能不能删' },
   ]
   const s = bm25Scores(docs, '摄像头')
+  // 归一化到 max：命中最好的那条就是 1.0（下游阈值语义依赖这一点）
   assert.equal(s.get('a'), 1)
   assert.ok(!s.has('b'), '完全没命中的不给分')
   assert.equal(bm25Scores(docs, '').size, 0, '空查询返回空表')
+})
+
+test('40b. termCoverage：查询词覆盖率与语料规模无关', () => {
+  assert.equal(termCoverage('OpenCV 摄像头帧率掉到 5', '摄像头'), 1, '全部命中')
+  assert.equal(termCoverage('OpenCV 摄像头', '摄像头'), 1)
+  assert.equal(termCoverage('完全无关的一句话', '摄像头'), 0, '一个都没命中')
+  assert.equal(termCoverage('随便什么', ''), 1, '空查询视为不过滤')
+
+  // 多词查询：命中一半
+  const cover = termCoverage('OpenCV 摄像头帧率掉到 5', 'OpenCV 摄像头 SQLite')
+  assert.ok(cover > 0 && cover < 1, `部分命中应落在 0~1 之间，实际 ${cover}`)
+})
+
+test('40c. recall 的覆盖率门槛：没命中就返回空，不硬凑 k 条', () => {
+  const list = [
+    mem({ id: 1, text: 'OpenCV 摄像头帧率掉到 5', importance: 0.9 }),
+    mem({ id: 2, text: 'D 盘空间不足想清理', importance: 0.8 }),
+  ]
+  const q = '摄像头'
+  const bm25 = bm25Scores(list, q)
+  // 有门槛：只有 1 命中
+  const strict = recall(list, NOW, {
+    k: 5,
+    relevanceOf: (m) => bm25.get(m.id) ?? 0,
+    coverageOf: (m) => termCoverage(m.text, q),
+  })
+  assert.equal(strict.length, 1, `只该返回命中的那条，实际 ${strict.length} 条`)
+  assert.equal(strict[0].mem.id, 1)
+
+  // 门槛关掉（注入路径）：仍然能拿到兜底条目
+  const loose = recall(list, NOW, {
+    k: 5,
+    query: false,
+    relevanceOf: (m) => bm25.get(m.id) ?? 0,
+    coverageOf: (m) => termCoverage(m.text, q),
+  })
+  assert.ok(loose.length > 1, `注入路径不该被过滤，实际 ${loose.length} 条`)
 })
 
 test('41. 进行中的事进注入块，done 的不进去', () => {

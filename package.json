@@ -1,17 +1,19 @@
 {
   "name": "dsh-long-memory",
-  "version": "0.5.0",
-  "private": true,
+  "version": "0.5.1",
+  "private": false,
   "type": "module",
   "description": "DSH 长时记忆插件：作用域 + 用途轴 + 连续衰减 + 印象累积，跨会话自动注入（零依赖，全本地）",
   "main": "src/index.js",
   "files": [
     "src",
     "scripts",
+    "tests",
     "cordis.patch.yml",
     "dsh.plugin.json",
     "记忆星图.cmd",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "dsh": {
     "bundle": {
@@ -20,7 +22,7 @@
   },
   "engines": {
     "node": ">=22.19.0",
-    "dsh": "0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.2-rc.1"
+    "dsh": "0.2.0-rc.1 || 0.2.0-rc.2 || 0.2.1-rc.1 || 0.2.2-rc.1 || 0.2.2-rc.2"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-tools": "*"

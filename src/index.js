@@ -22,6 +22,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
   DEFAULTS,
   bm25Scores,
+  termCoverage,
   classifyScope,
   classifyUse,
   compact,
@@ -108,11 +109,14 @@ export function apply(ctx, config = {}) {
 
     const pinnedIds = new Set(pinned.map((m) => m.id))
     // 相关度：BM25（查询 = 用户最近一句话）。没查询词时退化成 0.4 的常量，靠作用域+衰减排
+    // query: false → 不套用"查不到就不返回"的门槛。注入是要"尽力给点上下文"，不是精确检索，
+    // 用户随口一句"好的"不该让整块记忆消失。
     const bm25 = lastUserText ? bm25Scores(list, lastUserText) : null
     const recalled = recall(list, Date.now(), {
       cfg,
       k: topK,
       scopes: scopes ?? undefined,
+      query: false,
       relevanceOf: (m) => (bm25 ? (bm25.get(m.id) ?? 0) : 0.4),
     }).filter((r) => !pinnedIds.has(r.mem.id)) // 已经在常驻卡里的不重复塞
     const runningTasks = store.listTasks(['doing', 'blocked']).slice(0, taskMax)
@@ -600,6 +604,8 @@ export function apply(ctx, config = {}) {
         const kinds = typeof args.kind === 'string' && args.kind.trim() ? [args.kind.trim()] : null
         const now = Date.now()
         // 相关度用 BM25：短记忆不被长记忆稀释，罕见词（摄像头 / SQLite 这类）才顶得上来
+        // 门槛用 termCoverage：查询词覆盖率达到 minTermCoverage 才留下，没有真命中就返回空，
+        // 不再"硬凑满 k 条"（那会把只因为重要而被记住的条目当成搜索结果返回）。
         const bm25 = q ? bm25Scores(list, q) : null
         const got = recall(list, now, {
           cfg,
@@ -609,8 +615,15 @@ export function apply(ctx, config = {}) {
           // 显式给了 scope 就只查那条线（world 仍然算可见，它是底子）；没给就是全池
           scopes: only ? [only] : undefined,
           relevanceOf: (m) => (bm25 ? (bm25.get(m.id) ?? 0) : 0.4),
+          coverageOf: q ? (m) => termCoverage(m.text, q) : undefined,
         })
-        if (got.length === 0) return JSON.stringify({ matched: 0, hint: '没有相关记忆' }, null, 2)
+        if (got.length === 0) {
+          return JSON.stringify(
+            { matched: 0, hint: q ? `没有相关记忆（"${q}" 在库里没有覆盖率达标的条目）` : '没有相关记忆' },
+            null,
+            2
+          )
+        }
         return JSON.stringify(
           {
             matched: got.length,
