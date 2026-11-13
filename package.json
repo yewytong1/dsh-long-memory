@@ -33,9 +33,11 @@
     }
   },
   "scripts": {
-    "test": "node tests/core.test.mjs && node tests/store.test.mjs && node tests/plugin.test.mjs",
+    "test": "node --import ./tests/register-stub.mjs --test \"tests/*.test.mjs\"",
+    "test:plain": "node tests/core.test.mjs && node tests/store.test.mjs && node tests/plugin.test.mjs",
     "curves": "node scripts/dump-curves.mjs && python scripts/plot-decay.py",
-    "panel": "node scripts/build-panel.mjs"
+    "panel": "node scripts/build-panel.mjs",
+    "ab": "node scripts/ab-real.mjs"
   },
   "license": "MIT",
   "keywords": [

@@ -136,16 +136,33 @@ Windows 上可双击 `记忆星图.cmd`（生成 + 用 Edge/Chrome 打开，不�
 ## 开发
 
 ```bash
-npm test        # 三条测试文件全跑（core / store / plugin，共 68 条）
+npm test        # 全部测试（core / store / plugin，共 70 条）
 ```
 
+**不需要先 `npm install`。** 插件零运行时依赖；`src/index.js` 只 import 了一个宿主包 `@deepseek-ai/dsh-tools`，测试时会由 `tests/register-stub.mjs` 提供的桩顶上，所以干净克隆直接能跑。
+
 ```
-src/core.js         算法核心（纯函数，零依赖，可单测）
-src/store.js        SQLite 落盘 + 迁移（缺 node:sqlite 自动降级内存）
-src/index.js        宿主端：注入 + 采集 + 工具注册
-scripts/build-panel.mjs  星图面板生成
-scripts/backup-db.mjs    改结构前的一致性快照（VACUUM INTO）
+src/core.js               算法核心（纯函数，零依赖，可单测）
+src/store.js              SQLite 落盘 + 迁移（缺 node:sqlite 自动降级内存）
+src/index.js              宿主端：注入 + 采集 + 工具注册
+tests/register-stub.mjs   测试钩子：宿主包缺失时用桩解析
+tests/helpers/            桩实现
+scripts/ab-real.mjs       拿真实记忆库做检索 A/B（读 DSH_HOME）
+scripts/build-panel.mjs   星图面板生成
+scripts/backup-db.mjs     改结构前的一致性快照（VACUUM INTO）
+sync-to-profile.ps1       改了源码后同步到 profile（file: 依赖是拷贝，不是链接）
 ```
+
+### 改完源码不生效？
+
+`package.json` 里的 `file:` 依赖在安装时是**复制**，不是建链接。所以你改了 `projects\dsh-long-memory\src\`，宿主加载的 `~/.dsh/profiles/<profile>/node_modules/dsh-long-memory/src/` 还是旧的，重启也没用（`why` 字段里的权重还是老值）。改完跑一次：
+
+```powershell
+pwsh -File sync-to-profile.ps1              # 同步
+pwsh -File sync-to-profile.ps1 -CheckOnly   # 只看差异不动手
+```
+
+然后**完全退出 DSH 再打开**。脚本会自动备份旧副本到 `.sync-backup\<时间戳>`（已在 .gitignore 里）。
 
 ---
 
@@ -156,6 +173,7 @@ scripts/backup-db.mjs    改结构前的一致性快照（VACUUM INTO）
 - **单用户假设**：没有"谁说的"这个维度
 - **规模上限**：每轮全表扫描，几百到几千条没问题，上万条需要索引层
 - **不做自动建任务**：试过把判成 task 的发言自动写成任务，结果每句"我想…"都进了交接卡片——现在只认显式调用
+- **检索门槛偏严**：`minTermCoverage = 0.3` 意味着查询词至少命中三成，改写/近义词查询会返回空。宁可空也不塞噪音，这是有意的取舍（见 CHANGELOG 0.5.1）
 
 ---
 

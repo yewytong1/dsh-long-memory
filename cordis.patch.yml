@@ -7,5 +7,6 @@
         maxChars: 700
         # 一次注入最多几条记忆
         topK: 6
-        # 记忆库位置；留空 = ~/.dsh/long-term-memory/memory.sqlite
-        # dbPath: 'C:\Users\<you>\.dsh\long-term-memory\memory.sqlite'
+        # 记忆库位置；留空 = <DSH_HOME>/long-term-memory/memory.sqlite
+        # 需要换位置时取消下一行注释并改成绝对路径（Windows 反斜杠要写成 / 或 \\）
+        # dbPath: 'D:/dsh-memory/memory.sqlite'
