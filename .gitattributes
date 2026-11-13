@@ -1,0 +1,19 @@
+# 统一换行处理：仓库内用 LF，检出时按平台转换
+* text=auto
+
+# PowerShell 脚本必须保留 UTF-8 BOM，否则 Windows PowerShell 5.1
+# 会按 GBK 解码中文，导致 '一致' 这类字符串把引号吞掉、整份脚本解析失败。
+# -text 表示按二进制处理，git 不会动它的内容（包括 BOM）。
+*.ps1 -text
+
+# Windows 上的批处理同理
+*.cmd -text
+*.bat -text
+
+# 明确文本类型
+*.js   text
+*.mjs  text
+*.json text
+*.md   text
+*.yml  text
+*.yaml text

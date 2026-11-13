@@ -155,14 +155,20 @@ sync-to-profile.ps1       改了源码后同步到 profile（file: 依赖是拷�
 
 ### 改完源码不生效？
 
-`package.json` 里的 `file:` 依赖在安装时是**复制**，不是建链接。所以你改了 `projects\dsh-long-memory\src\`，宿主加载的 `~/.dsh/profiles/<profile>/node_modules/dsh-long-memory/src/` 还是旧的，重启也没用（`why` 字段里的权重还是老值）。改完跑一次：
+`package.json` 里的 `file:` 依赖在安装时是**复制**，不是建链接。所以你改了本仓库的 `src/`，宿主加载的 `~/.dsh/profiles/<profile>/node_modules/dsh-long-memory/src/` 还是旧的，重启也没用（`why` 字段里的权重还是老值）。改完跑一次：
 
 ```powershell
-pwsh -File sync-to-profile.ps1              # 同步
+pwsh -File sync-to-profile.ps1              # 自动找装了本插件的 profile
 pwsh -File sync-to-profile.ps1 -CheckOnly   # 只看差异不动手
+pwsh -File sync-to-profile.ps1 -Profile web # 多个 profile 时指定
+pwsh -File sync-to-profile.ps1 -DshHome D:\my-dsh-home   # DSH_HOME 不在默认位置
 ```
 
 然后**完全退出 DSH 再打开**。脚本会自动备份旧副本到 `.sync-backup\<时间戳>`（已在 .gitignore 里）。
+
+不传参数时它会自己找：`DSH_HOME` 环境变量 → 默认 `~/.dsh`，再扫 `profiles/*/package.json`，找装了 `dsh-long-memory` 的那个。如果目标其实是符号链接/junction，脚本会直接退出——那种情况改动本来就即时生效。
+
+**脚本兼容 Windows PowerShell 5.1 和 PowerShell 7+。** 文件必须以 UTF-8 **带 BOM** 保存，否则 5.1 会按 GBK 解码中文导致解析失败；`.gitattributes` 里已把 `*.ps1` 标为 `-text` 防止 BOM 被剥离。
 
 ---
 
